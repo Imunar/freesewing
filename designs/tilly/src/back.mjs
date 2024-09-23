@@ -18,42 +18,14 @@ function tillyBack({
   points.cbNeck = new Point(0, points.neck.y + options.backNeckCutout * measurements.neck)
   points.cbNeckCp1 = points.cbNeck.shift(0, points.neck.x / 2)
   points.neckCp2 = utils.beamIntersectsY(points.neck, points.neckCp2, points.cbNeck.y)
-  let offset = 30
-
-  // Adjust armhole
-  points.shoulderCp1 = points.shoulderCp1.shiftFractionTowards(points.shoulder, 0.25)
-
-  //adjust shhoulder
-  //points.shoulder = points.shoulder.shift(measurements.shoulderSlope, 30)
-
-  // need new Points
-  // first half sleeve lenth lenght:
-  let halfLengh = (offset * (1 + options.sleeveHemLength)) / 2
-  points.halfLoverSleeve = points.armhole.shift(45, halfLengh)
-  points.halfLoverSleeve2 = points.halfLoverSleeve.shift(-45, halfLengh)
-  points.shoulderCp1 = points.shoulder
-    .shiftTowards(points.neck, points.shoulder.dy(points.armholePitch) / 1)
-    .rotate(90, points.shoulder)
-  points.armholeCp2 = points.armhole.shift(180, points._tmp1.dx(points.armhole) / 20)
-
-  // Draw seamline
-  //paths.hemBase = new Path().move(points.cfHem).line(points.hem).hide()
 
   // Draw seamline
   if (!options.draftWithCurvedHem) {
     paths.hemBase = new Path().move(points.cfHem).line(points.hem).hide()
   } else {
-    var cuvedHemLenth = 65 * (1 + options.curvedHemLenght)
-    var midPoint = new Point(points.hem.x / 2, points.hem.y + cuvedHemLenth / 4)
-    var nMidPoint = new Point(points.cfHem.x, points.hem.y + cuvedHemLenth)
-    points.cfHem = nMidPoint
-    var lenth = points.hem.dx(points.cfHem)
     paths.hemBase = new Path()
       .move(points.cfHem)
-      .line(nMidPoint)
-      //._curve( midPoint, points.hem)
-      .curve(points.hem.shift(90, lenth / 4), midPoint, points.hem)
-      //._curve( midPoint.shift(35, lenth/4), points.hem.shift(180-35, -lenth/4), points.hem)
+      .curve(points.cfHemCp2, points.hemCp1, points.hem)
       .hide()
   }
 
@@ -67,37 +39,53 @@ function tillyBack({
     paths.sideSeam = new Path().move(points.hem).curve_(points.waistCp2, points.armhole).hide()
   }
 
-  paths.mkArmhole = new Path()
-    .move(points.armhole)
-    .curve(points.armholeCp2, points.shoulderCp1, points.shoulder)
-    .attr('class', 'fabric help')
+  var underArmSleeveLength = points.lowerSleeve.dist(points.armhole)
+  var lenth2 = points.sleeveBottomMin.dist(points.armhole)
 
-  paths.sleeveFoldLine = new Path()
-    .move(points.halfLoverSleeve)
-    .curve(
-      points.armholeCp2.shift(30, halfLengh),
-      points.shoulderCp1.shift(-measurements.shoulderSlope, halfLengh),
-      points.shoulder.shift(-measurements.shoulderSlope, halfLengh)
-    )
-    .attr('class', 'fabric lashed')
+  if (!options.draftWithWingedSleeve) {
+    points.underArmCurveStart = paths.sideSeam.reverse().shiftAlong(lenth2)
 
-  paths.seamSleeve = new Path()
-    .move(points.armhole)
-    .line(points.halfLoverSleeve)
-    .line(points.halfLoverSleeve2)
-    .curve(
-      points.armholeCp2.shift(0, halfLengh * 2),
-      points.shoulderCp1.shift(0, halfLengh * 2),
-      points.shoulder.shift(-measurements.shoulderSlope, halfLengh * 2)
+    points.sleeveBottomMinCp1 = points.sleeveBottomMin.shift(
+      // points.sleeveBottomMin.angle(points.sleeveTopMin) + 90,
+      points.wristBottom.angle(points.sleeveBottomMin),
+      (points.sleeveBottomMin.dist(points.armhole) * 2) / 3
     )
-    .line(points.shoulder)
-    .hide()
-  paths.seamSleeve.trim()
+
+    points.underArmCurveStartCp2 = paths.sideSeam
+      .split(points.underArmCurveStart)[0]
+      .shiftFractionAlong(0.995) //trust me
+      .shiftOutwards(
+        points.underArmCurveStart,
+        points.sleeveBottomMin.dist(points.sleeveBottomMinCp1)
+      )
+
+    paths.sideSeam = paths.sideSeam
+      .split(points.underArmCurveStart)[0]
+      .curve(points.underArmCurveStartCp2, points.sleeveBottomMinCp1, points.sleeveBottomMin)
+      .line(points.sleeveBottomMin)
+      .line(points.lowerSleeve)
+      .hide()
+  } else {
+    points.underArmCurveStart = paths.sideSeam.reverse().shiftAlong(underArmSleeveLength)
+    points.sleeveBottomCp1 = points.lowerSleeve.shift(
+      points.lowerSleeve.angle(points.upperSleeve) + 90,
+      (points.lowerSleeve.dist(points.armhole) * 2) / 3
+    )
+
+    points.underArmCurveStartCp2 = paths.sideSeam
+      .split(points.underArmCurveStart)[0]
+      .shiftFractionAlong(0.995) //trust me
+      .shiftOutwards(points.underArmCurveStart, points.lowerSleeve.dist(points.sleeveBottomCp1))
+
+    paths.sideSeam = paths.sideSeam
+      .split(points.underArmCurveStart)[0]
+      .curve(points.underArmCurveStartCp2, points.sleeveBottomCp1, points.lowerSleeve)
+      .hide()
+  }
+  paths.seamSleeveFront = new Path().move(points.lowerSleeve).line(points.upperSleeve).hide()
 
   paths.saBase = new Path()
     .move(points.shoulder)
-    //.curve(points.armholeCp2, points.halfLoverSleeve, points.armholeHollow)
-    //.curve(points.armholeHollowCp2, points.shoulderCp1, points.shoulder)
     .line(points.neck)
     .curve(points.neckCp2, points.cbNeckCp1, points.cbNeck)
     .hide()
@@ -110,8 +98,8 @@ function tillyBack({
   paths.seam = new Path()
     .move(points.cfHem)
     .join(paths.hemBase)
-    //.join(paths.te)
     .join(paths.sideSeam)
+    .join(paths.seamSleeveFront)
     .join(paths.seamSleeve)
     .join(paths.saBase)
     .line(points.cfHem)
@@ -123,6 +111,7 @@ function tillyBack({
       .move(points.cfHem)
       .join(paths.hemBase.offset(sa * 3))
       .join(paths.sideSeam.offset(sa))
+      .join(paths.seamSleeveFront.offset(sa * 2))
       .join(paths.seamSleeve.offset(sa))
       .join(paths.saBase.offset(sa))
       .line(points.cbNeck)

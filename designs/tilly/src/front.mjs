@@ -18,8 +18,6 @@ function tillyFront({
   units,
   part,
 }) {
-  let offset = 30
-
   // Hide Brian paths
   for (let key of Object.keys(paths)) paths[key].hide()
 
@@ -64,7 +62,32 @@ function tillyFront({
   }
 
   //adjust shhoulder
-  points.shoulder = points.shoulder.shift(measurements.shoulderSlope, 10 + 1 * options.shoulderEase)
+  points.shoulder = points.shoulder.shift(+90, 0.05 * measurements.hpsToWaistBack)
+  //calc wrist
+  points.wristTop = points.neck.shiftOutwards(points.shoulder, measurements.shoulderToWrist)
+  //points.wristBottom = points.wristTop.shift(-90, measurements.wrist/2+ 10*options.cuffEase)
+  points.wristBottom = points.wristTop.shift(
+    points.wristTop.angle(points.shoulder) + 90,
+    measurements.wrist * (1 + options.cuffEase) * 0.5
+  )
+
+  //now add the lower wrist point
+  points.lowerSleeve = points.armhole.shiftFractionTowards(points.wristBottom, options.sleeveLength)
+  //and now connect to shoulderseam
+  points.upperSleeve = utils.linesIntersect(
+    points.lowerSleeve,
+    new Point(points.lowerSleeve.x, 0),
+    points.wristTop,
+    points.shoulder
+  )
+  //save minimum sleeve point
+  points.sleeveBottomMin = points.armhole.shiftFractionTowards(points.wristBottom, 0.07)
+  points.sleeveTopMin = utils.linesIntersect(
+    points.sleeveBottomMin,
+    new Point(points.sleeveBottomMin.x, 0),
+    points.wristTop,
+    points.shoulder
+  )
 
   // Neckline
   points.cfNeck = new Point(0, options.necklineDepth * measurements.hpsToWaistBack)
@@ -73,18 +96,6 @@ function tillyFront({
   points.neckCp2 = points.neck
     .shiftTowards(points.shoulder, points.neck.dy(points.cfNeck) * (0.2 + options.necklineBend))
     .rotate(-90, points.neck)
-
-  // Redraw armhole
-  points.shoulderCp1 = utils.beamIntersectsY(
-    points.shoulder,
-    points.shoulderCp1,
-    points.armholePitch.y
-  )
-  points.armholeHollowCp2 = utils.beamIntersectsX(
-    points.armholeHollow,
-    points.armholeHollowCp2,
-    points.armholePitch.x
-  )
 
   // Log info for full length
   store.flag.info({
@@ -102,18 +113,13 @@ function tillyFront({
   if (!options.draftWithCurvedHem) {
     paths.hemBase = new Path().move(points.cfHem).line(points.hem).hide()
   } else {
-    var cuvedHemLenth = 65 * (1 + options.curvedHemLenght)
-    var midPoint = new Point(points.hem.x / 2, points.hem.y + cuvedHemLenth / 4)
-    var nMidPoint = new Point(points.cfHem.x, points.hem.y + cuvedHemLenth)
-    points.cfHem = nMidPoint
+    points.cfHem = new Point(points.cfHem.x, points.cfHem.y * (1 + options.curvedHemLenght))
+    points.cfHemCp2 = new Point(points.hem.x * 0.8, points.cfHem.y)
+    points.hemCp1 = new Point(points.hem.x * 0.55, points.hem.y)
 
-    var lenth = points.hem.dx(points.cfHem)
     paths.hemBase = new Path()
       .move(points.cfHem)
-      .line(nMidPoint)
-      //._curve( midPoint, points.hem)
-      .curve(points.hem.shift(90, lenth / 4), midPoint, points.hem)
-      //._curve( midPoint.shift(35, lenth/4), points.hem.shift(180-35, -lenth/4), points.hem)
+      .curve(points.cfHemCp2, points.hemCp1, points.hem)
       .hide()
   }
 
@@ -127,51 +133,67 @@ function tillyFront({
     paths.sideSeam = new Path().move(points.hem).curve_(points.waistCp2, points.armhole).hide()
   }
 
-  let halfLengh = (offset * (1 + options.sleeveHemLength)) / 2
-  points.halfLoverSleeve = points.armhole.shift(45, halfLengh)
-  points.halfLoverSleeve2 = points.halfLoverSleeve.shift(-45, halfLengh)
-  points.shoulderCp1 = points.shoulder
-    .shiftTowards(points.neck, points.shoulder.dy(points.armholePitch) / 1)
-    .rotate(90, points.shoulder)
-  points.armholeCp2 = points.armhole.shift(180, points._tmp1.dx(points.armhole) / 20)
+  var underArmSleeveLength = points.lowerSleeve.dist(points.armhole)
+  var lenth2 = points.sleeveBottomMin.dist(points.armhole)
 
-  paths.mkArmhole = new Path()
-    .move(points.armhole)
-    .curve(points.armholeCp2, points.shoulderCp1, points.shoulder)
-    .attr('class', 'fabric help')
+  if (!options.draftWithWingedSleeve) {
+    points.underArmCurveStart = paths.sideSeam.reverse().shiftAlong(lenth2)
 
-  paths.sleeveFoldLine = new Path()
-    .move(points.halfLoverSleeve)
-    .curve(
-      points.armholeCp2.shift(30, halfLengh),
-      points.shoulderCp1.shift(-measurements.shoulderSlope, halfLengh),
-      points.shoulder.shift(-measurements.shoulderSlope, halfLengh)
+    points.sleeveBottomMinCp1 = points.sleeveBottomMin.shift(
+      // points.sleeveBottomMin.angle(points.sleeveTopMin) + 90,
+      points.wristBottom.angle(points.sleeveBottomMin),
+      (points.sleeveBottomMin.dist(points.armhole) * 2) / 3
     )
-    .attr('class', 'fabric lashed')
 
-  // paths.seamSleeve = new Path()
-  //   .move(points.armhole)
-  //   .line(points.halfLoverSleeve)
-  //   .line(points.halfLoverSleeve2)
-  //   .curve(
-  //     points.armholeCp2.shift(30, halfLengh * 2),
-  //     points.shoulderCp1.shift(-measurements.shoulderSlope, halfLengh * 2),
-  //     points.shoulder.shift(-measurements.shoulderSlope, halfLengh * 2)
-  //   )
-  //   .line(points.shoulder)
-  //   .hide()
+    points.underArmCurveStartCp2 = paths.sideSeam
+      .split(points.underArmCurveStart)[0]
+      .shiftFractionAlong(0.995) //trust me
+      .shiftOutwards(
+        points.underArmCurveStart,
+        points.sleeveBottomMin.dist(points.sleeveBottomMinCp1)
+      )
+
+    paths.sideSeam = paths.sideSeam
+      .split(points.underArmCurveStart)[0]
+      .curve(points.underArmCurveStartCp2, points.sleeveBottomMinCp1, points.sleeveBottomMin)
+      .line(points.sleeveBottomMin)
+      .line(points.lowerSleeve)
+      .hide()
+  } else {
+    points.underArmCurveStart = paths.sideSeam.reverse().shiftAlong(underArmSleeveLength)
+    points.sleeveBottomCp1 = points.lowerSleeve.shift(
+      points.lowerSleeve.angle(points.upperSleeve) + 90,
+      (points.lowerSleeve.dist(points.armhole) * 2) / 3
+    )
+
+    points.underArmCurveStartCp2 = paths.sideSeam
+      .split(points.underArmCurveStart)[0]
+      .shiftFractionAlong(0.995) //trust me
+      .shiftOutwards(points.underArmCurveStart, points.lowerSleeve.dist(points.sleeveBottomCp1))
+
+    paths.sideSeam = paths.sideSeam
+      .split(points.underArmCurveStart)[0]
+      .curve(points.underArmCurveStartCp2, points.sleeveBottomCp1, points.lowerSleeve)
+      .hide()
+  }
+  paths.seamSleeveFront = new Path().move(points.lowerSleeve).line(points.upperSleeve).hide()
+
   paths.seamSleeve = new Path()
-    .move(points.armhole)
-    .line(points.halfLoverSleeve)
-    .line(points.halfLoverSleeve2)
-    .curve(
-      points.armholeCp2.shift(0, halfLengh * 2),
-      points.shoulderCp1.shift(0, halfLengh * 2),
-      points.shoulder.shift(-measurements.shoulderSlope, halfLengh * 2)
-    )
+    //.move(points.armhole)
+    //.line(points.lowerSleeve)
+    //.move(points.lowerSleeve)
+    //.line(points.upperSleeve)
+    .move(points.upperSleeve)
     .line(points.shoulder)
     .hide()
+  /*
+paths.seamSleeve = new Path()
+  .move(points.armhole)
+  .line(points.endOfSleve)
+  .line(points.shoulderEndPoint)
+  .hide()
   paths.seamSleeve.trim()
+  */
 
   paths.saBase = new Path()
     .move(points.shoulder)
@@ -183,6 +205,7 @@ function tillyFront({
     .move(points.cfHem)
     .join(paths.hemBase)
     .join(paths.sideSeam)
+    .join(paths.seamSleeveFront)
     .join(paths.seamSleeve)
     .join(paths.saBase)
     .line(points.cfHem)
@@ -194,22 +217,13 @@ function tillyFront({
       .move(points.cfHem)
       .join(paths.hemBase.offset(sa * 3))
       .join(paths.sideSeam.offset(sa))
+      .join(paths.seamSleeveFront.offset(sa * 2))
       .join(paths.seamSleeve.offset(sa))
       .join(paths.saBase.offset(sa))
       .line(points.cfNeck)
 
     paths.sa = paths.sa.trim().attr('class', 'fabric sa')
   }
-
-  // Store front sleevecap length
-  store.set(
-    'frontArmholeLength',
-    new Path()
-      .move(points.armhole)
-      .curve(points.armholeCp2, points.armholeHollowCp1, points.armholeHollow)
-      .curve(points.armholeHollowCp2, points.shoulderCp1, points.shoulder)
-      .length()
-  )
 
   /*
    * Annotations
@@ -288,6 +302,12 @@ function tillyFront({
     to: points.shoulder,
     y: points.neck.y - sa - 30,
   })
+  /*macro('hd', {
+    id: 'cuffsize',
+    from: points.shoulderEndPoint,
+    to: points.endOfSleve,
+    x: points.endOfSleve.y - sa + 30,
+  })*/
   macro('hd', {
     id: 'wFull',
     from: points.cfNeck,
@@ -305,7 +325,7 @@ function tillyFront({
     id: 'neckToSlope',
     from: points.neck,
     to: points.shoulder,
-    y: points.shoulder.y - 15,
+    y: points.shoulder.y + 15,
   })
 
   macro('vd', {
@@ -321,27 +341,29 @@ function tillyFront({
 export const front = {
   name: 'tilly.front',
   from: base,
-  measurements: ['hips', 'waist'],
+  measurements: ['hips', 'waist', 'hpsToBust', 'shoulderToWrist', 'wrist'],
   hide: hidePresets.HIDE_TREE,
   options: {
     bicepsEase: 0.05,
-    shoulderEase: 0,
+    //shoulderEase: 0,
     collarEase: 0,
     shoulderSlopeReduction: 0,
     sleeveWidthGuarantee: 0.85,
     frontArmholeDeeper: 0.005,
     // Brian overrides
+    armholeDepth: { pct: 9.8, min: -10, max: 50, menu: 'advanced' },
     chestEase: { pct: 12, min: 5, max: 50, menu: 'fit' },
-    sleeveLength: { pct: 30, min: 20, max: 100, menu: 'fit' },
     lengthBonus: { pct: 5, min: -20, max: 60, menu: 'style' },
     backNeckCutout: { pct: 8, min: 4, max: 12, menu: 'fit' },
     // tilly specific
-    draftWithCurvedHem: { bool: false, menu: 'fit' },
+    draftWithCurvedHem: { bool: false, menu: 'style' },
+    draftWithWingedSleeve: { bool: false, menu: 'style' },
+
     curvedHemLenght: {
-      pct: 10,
-      min: 10,
-      max: 100,
-      menu: (settings, mergedOptions) => (mergedOptions.draftWithCurvedHem ? 'fit' : false),
+      pct: 13,
+      min: 5,
+      max: 30,
+      menu: (settings, mergedOptions) => (mergedOptions.draftWithCurvedHem ? 'style' : false),
     },
     draftForHighBust: { bool: false, menu: 'fit' },
     fitWaist: { bool: false, menu: 'fit' },
@@ -356,7 +378,7 @@ export const front = {
     necklineWidth: { pct: 30, min: 10, max: 50, menu: 'style' },
     necklineBend: { pct: 30, min: 0, max: 70, menu: 'style' },
     shoulderEase: { pct: 30, min: 15, max: 45, menu: 'style' },
-    sleeveHemLength: { pct: 0, min: -30, max: 30, menu: 'style' },
+    sleeveLength: { pct: 7, min: 7, max: 80, menu: 'style' },
   },
   draft: tillyFront,
 }
