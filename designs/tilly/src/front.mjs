@@ -62,7 +62,7 @@ function tillyFront({
   }
 
   //adjust shhoulder
-  points.shoulder = points.shoulder.shift(+90, 0.05 * measurements.hpsToWaistBack)
+  points.shoulder = points.shoulder.shift(+90, 0.07 * measurements.hpsToWaistBack)
   //calc wrist
   points.wristTop = points.neck.shiftOutwards(points.shoulder, measurements.shoulderToWrist)
   //points.wristBottom = points.wristTop.shift(-90, measurements.wrist/2+ 10*options.cuffEase)
@@ -351,7 +351,7 @@ export const front = {
     sleeveWidthGuarantee: 0.85,
     frontArmholeDeeper: 0.005,
     // Brian overrides
-    armholeDepth: { pct: 9.8, min: -10, max: 50, menu: 'advanced' },
+    armholeDepth: { pct: 20.0, min: -10, max: 50, menu: 'advanced' },
     chestEase: { pct: 12, min: 5, max: 50, menu: 'fit' },
     lengthBonus: { pct: 5, min: -20, max: 60, menu: 'style' },
     backNeckCutout: { pct: 8, min: 4, max: 12, menu: 'fit' },
